@@ -1,6 +1,6 @@
 # Zoom City
 
-A 3D open-city driving game. Drive around, take jobs, collect coins, and pull off getaways. Every car is free.
+A 3D open-city driving game. Drive around, take jobs, collect coins, visit fun places, and pull off getaways. Every car is free.
 
 Play here: https://ruralraven.github.io/city-drive/
 
@@ -34,6 +34,19 @@ Jobs are deliveries, taxi rides, checkpoint races, and getaways.
 Every car is free from the start. Coins you collect are saved on this device and count as a score. If a car gets too smashed, it pops in a cartoon explosion (with no one inside), and you can call another one from the Garage.
 
 If the police catch you, you will see a Busted! message and go back to the plaza. Your wanted stars are cleared. Nobody gets hurt.
+
+
+## Places to visit
+
+- **Zoom City Bank** — there are several banks, marked on the minimap. Drive into the glowing marker and stay a few seconds to grab cartoon money bags (no guns, nobody gets hurt). That gives you coins and three wanted stars. A robbed bank closes, then opens again later.
+- **Stunt Park** — ramps and rings to jump through.
+- **Gas station** — pull up under the canopy to refill your nitro.
+- **Car wash** — drive through to change your car's color.
+- **Zoom Burger** — stop by for a snack. Your car feels a little faster for a short time, and it gets fixed up.
+- **Hidden stars** — eight shiny stars are tucked around the city. They are not marked on the minimap.
+- **River jump** — next to the bridge, a long ramp lets you jump over the water to the island.
+
+Police cars patrol the streets even when you have zero wanted stars, but they only chase you after something bad happens (a hard crash, bumping a person, smashing things, running a red light, or a bank robbery). Hide out of sight for about 15–20 seconds to lose a star. When your stars are gone, the police go back to patrol.
 
 ## Play on an iPhone
 

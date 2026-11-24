@@ -476,7 +476,7 @@ h1 {
 }
 #busted h2 { color: #ff4d6d; }
 
-#bust-meter {
+#hold-meter, #bust-meter {
   width: 160px;
   background: rgba(20, 24, 36, 0.85);
   border-radius: 12px;
@@ -505,3 +505,15 @@ h1 {
   transform-origin: left center;
   transform: scaleX(0);
 }
+
+#hold-meter { border-color: #ffe066; }
+#hold-label { color: #ffe066; font-size: 13px; font-weight: 800; margin-bottom: 4px; }
+#hold-fill {
+  height: 8px;
+  width: 100%;
+  background: #ffe066;
+  transform-origin: left center;
+  transform: scaleX(0);
+  border-radius: 6px;
+}
+#star-chip { font-size: 16px; }
