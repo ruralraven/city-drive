@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="theme-color" content="#ffb703" />
+  <meta name="description" content="Zoom City — drive, take jobs, and pull off getaways in a sunny 3D city." />
+  <title>Zoom City</title>
+  <link rel="icon" type="image/png" href="icons/favicon.png" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <div id="app">
+    <canvas id="c"></canvas>
+
+    <div id="hud" class="hidden">
+      <div id="hud-left">
+        <div class="chip" id="coin-chip"><span class="ico">🪙</span><span id="coin-count">0</span></div>
+        <div class="chip" id="speed-chip"><span id="speed-num">0</span><span class="unit">mph</span></div>
+        <div id="wanted" class="hidden" aria-label="Wanted stars">
+          <span class="star" data-i="1">★</span>
+          <span class="star" data-i="2">★</span>
+          <span class="star" data-i="3">★</span>
+          <span class="star" data-i="4">★</span>
+          <span class="star" data-i="5">★</span>
+        </div>
+        <div id="nitro-wrap">
+          <div id="nitro-label">NITRO</div>
+          <div id="nitro-bar"><div id="nitro-fill"></div></div>
+        </div>
+        <div id="escape-hint" class="hidden">Hide from the police to lose a star!</div>
+      </div>
+      <div id="mission-banner" class="hidden">
+        <div id="mission-title">Job</div>
+        <div id="mission-goal">Go to the marker</div>
+        <div id="mission-time"></div>
+      </div>
+      <div id="hud-right">
+        <canvas id="minimap" width="200" height="200"></canvas>
+        <div id="hud-btns">
+          <button type="button" id="btn-day" class="round-btn" title="Day and night">☀️</button>
+          <button type="button" id="btn-pause" class="round-btn" title="Pause">❚❚</button>
+        </div>
+      </div>
+      <div id="prompt" class="hidden"></div>
+      <div id="toast" class="hidden"></div>
+    </div>
+
+    <div id="touch" class="hidden">
+      <div id="joy-wrap">
+        <div id="joy-base"><div id="joy-knob"></div></div>
+      </div>
+      <div id="touch-right">
+        <button type="button" id="btn-horn" class="act-btn horn">🔔</button>
+        <button type="button" id="btn-nitro" class="act-btn nitro">Nitro</button>
+        <button type="button" id="btn-enter" class="act-btn enter">Hop in</button>
+        <div id="pedals">
+          <button type="button" id="btn-brake" class="act-btn pedal brake">Brake</button>
+          <button type="button" id="btn-gas" class="act-btn pedal gas">Gas</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="title" class="screen">
+      <div class="title-card">
+        <div class="badge">Open-city action</div>
+        <h1>ZOOM<br>CITY</h1>
+        <p class="tag">Drive, take jobs, and pull off wild getaways.</p>
+        <button type="button" id="btn-play" class="big-btn">Play</button>
+        <button type="button" id="btn-garage-title" class="ghost-btn">Garage</button>
+        <div class="howto">
+          <h2>How to play</h2>
+          <ul>
+            <li>Walk with the left stick, or the W A S D keys.</li>
+            <li>Hop into a car when you are next to it. On a keyboard, press E.</li>
+            <li>Gas and Brake are on the right. On a keyboard, use W and S, or the arrow keys.</li>
+            <li>Steer with the stick or A and D.</li>
+            <li>Go to the glowing job signs for deliveries, taxi rides, races, and getaways.</li>
+            <li>Crashes, smashed stuff, and running red lights can raise wanted stars. Police cars will chase you. Hide to lose stars.</li>
+            <li>Hold Nitro (or Shift) for a speed burst.</li>
+            <li>Collect coins to unlock faster cars.</li>
+            <li>People jump out of the way. Nobody gets hurt. There are no guns.</li>
+          </ul>
+        </div>
+        <p class="ver">v2</p>
+      </div>
+    </div>
+
+    <div id="busted" class="screen hidden">
+      <div class="panel">
+        <h2>Busted!</h2>
+        <p class="tag">The police boxed you in. They just want to talk. Your wanted stars are gone.</p>
+        <button type="button" id="btn-busted" class="big-btn">Keep playing</button>
+      </div>
+    </div>
+
+    <div id="pause" class="screen hidden">
+      <div class="panel">
+        <h2>Paused</h2>
+        <button type="button" id="btn-resume" class="big-btn">Keep playing</button>
+        <button type="button" id="btn-garage-pause" class="ghost-btn">Garage</button>
+        <button type="button" id="btn-unstick" class="ghost-btn">Unstick me</button>
+        <button type="button" id="btn-mute" class="ghost-btn">Sound: On</button>
+        <button type="button" id="btn-quit" class="ghost-btn">Back to title</button>
+      </div>
+    </div>
+
+    <div id="garage" class="screen hidden">
+      <div class="panel garage-panel">
+        <h2>Garage</h2>
+        <p class="garage-coins">Your coins: <strong id="garage-coins">0</strong></p>
+        <div id="car-list"></div>
+        <button type="button" id="btn-garage-close" class="big-btn">Done</button>
+      </div>
+    </div>
+  </div>
+  <script type="module" src="js/game.js"></script>
+</body>
+</html>
