@@ -4,7 +4,7 @@ A 3D open-city driving game. Drive around, take jobs, collect coins, visit fun p
 
 Play here: https://ruralraven.github.io/city-drive/
 
-This game is made for ages about 10 and up. There are no guns, no blood, and nobody gets hurt. People jump out of the way. Wanted stars go up if you crash into traffic, smash objects, or speed through a red light. Cartoon police cars will chase you. Hide to lose stars.
+This game is made for ages about 10 and up. There are no guns, no blood, and nobody gets hurt. People jump out of the way. Wanted stars go up only if a police car sees you crash into traffic, smash objects, bump someone, or speed through a red light. A bank alarm always calls the police. Cartoon police cars will chase you. Hide to lose stars.
 
 Jobs are deliveries, taxi rides, checkpoint races, and getaways.
 
@@ -36,6 +36,10 @@ Every car is free from the start. Coins you collect are saved on this device and
 If the police catch you, you will see a Busted! message and go back to the plaza. Your wanted stars are cleared. Nobody gets hurt.
 
 
+## The city
+
+The map is a bigger open city with several areas: downtown skyscrapers around the plaza, quieter suburbs with houses, an industrial yard, a beach and harbor, and a highway loop around the edge. Three Zoom City Banks and the other fun places are spread across the map. There are 12 hidden stars.
+
 ## Places to visit
 
 - **Zoom City Bank** — there are several banks, marked on the minimap. Drive into the glowing marker and stay a few seconds to grab cartoon money bags (no guns, nobody gets hurt). That gives you coins and three wanted stars. A robbed bank closes, then opens again later.
@@ -43,10 +47,10 @@ If the police catch you, you will see a Busted! message and go back to the plaza
 - **Gas station** — pull up under the canopy to refill your nitro.
 - **Car wash** — drive through to change your car's color.
 - **Zoom Burger** — stop by for a snack. Your car feels a little faster for a short time, and it gets fixed up.
-- **Hidden stars** — eight shiny stars are tucked around the city. They are not marked on the minimap.
+- **Hidden stars** — twelve shiny stars are tucked around the city. They are not marked on the minimap.
 - **River jump** — next to the bridge, a long ramp lets you jump over the water to the island.
 
-Police cars patrol the streets even when you have zero wanted stars, but they only chase you after something bad happens (a hard crash, bumping a person, smashing things, running a red light, or a bank robbery). Hide out of sight for about 15–20 seconds to lose a star. When your stars are gone, the police go back to patrol.
+Five police cars patrol the bigger city at all times. They only chase you after something bad happens, and only if a cop actually sees it (unless you rob a bank — the alarm always calls them). Hide out of sight for about 15–20 seconds to lose a star. When your stars are gone, the police go back to patrol.
 
 ## Play on an iPhone
 

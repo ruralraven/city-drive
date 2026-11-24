@@ -2,7 +2,10 @@ import * as THREE from '../vendor/three.module.min.js';
 
 const $ = (id) => document.getElementById(id);
 
-const N = 6;
+const N = 8;
+const HIDDEN_STAR_TOTAL = 12;
+const PLAZA_I = 3;
+const PLAZA_J = 3;
 const BLOCK = 38;
 const ROAD = 16;
 const STEP = BLOCK + ROAD;
@@ -449,17 +452,27 @@ function patchBuildingMaterial(mat) {
 }
 
 function specialLot(i, j) {
-  if (i === 2 && j === 2) return 'plaza';
+  if (i === PLAZA_I && j === PLAZA_J) return 'plaza';
   if (i === 0 && j === 0) return 'stunt';
-  if (i === 0 && j === 4) return 'park';
-  if (i === 4 && j === 0) return 'park';
-  if (i === 5 && j === 3) return 'park';
-  if (i === 5 && j === 1) return 'post';
-  if ((i === 1 && j === 1) || (i === 3 && j === 4) || (i === 5 && j === 2)) return 'bank';
-  if (i === 2 && j === 0) return 'gas';
-  if (i === 4 && j === 3) return 'wash';
-  if (i === 2 && j === 4) return 'burger';
+  if (i === 1 && j === 5) return 'park';
+  if (i === 5 && j === 1) return 'park';
+  if (i === 7 && j === 5) return 'park';
+  if (i === 3 && j === 6) return 'park';
+  if (i === 7 && j === 1) return 'post';
+  if ((i === 4 && j === 3) || (i === 1 && j === 3) || (i === 6 && j === 6)) return 'bank';
+  if (i === 6 && j === 2) return 'gas';
+  if (i === 2 && j === 6) return 'wash';
+  if (i === 4 && j === 2) return 'burger';
   return 'build';
+}
+
+function districtOf(i, j) {
+  if (specialLot(i, j) === 'plaza') return 'downtown';
+  if (j >= N - 2) return 'harbor';
+  if (i <= 1 && j <= 2) return 'suburb';
+  if (i >= N - 2 && j <= 2) return 'industry';
+  if (Math.abs(i - PLAZA_I) <= 1 && Math.abs(j - PLAZA_J) <= 1) return 'downtown';
+  return 'city';
 }
 
 function treeGeometry() {
@@ -757,8 +770,10 @@ class Game {
     writeSave(this.save);
     this.scene = new THREE.Scene();
     this.scene.background = col(0x7ec8e3);
-    this.scene.fog = new THREE.Fog(0x7ec8e3, 80, 260);
-    this.camera = new THREE.PerspectiveCamera(58, innerWidth / innerHeight, 0.2, 500);
+    this.fogFarDay = this.lite ? 230 : 430;
+    this.fogNearDay = this.lite ? 70 : 100;
+    this.scene.fog = new THREE.Fog(0x7ec8e3, this.fogNearDay, this.fogFarDay);
+    this.camera = new THREE.PerspectiveCamera(58, innerWidth / innerHeight, 0.2, this.lite ? 520 : 780);
     this.camera.position.copy(this.camPos);
     this.renderer = new THREE.WebGLRenderer({ canvas: $('c'), antialias: !this.isTouch, powerPreference: 'high-performance' });
     this.renderer.setPixelRatio(Math.min(devicePixelRatio || 1, this.isTouch ? 1.5 : 1.75));
@@ -820,7 +835,7 @@ class Game {
     });
     if (this.params.get('shot') === 'garage') {
       this.openGarage('title');
-    } else if (this.params.has('demo') || ['drive','chase','busted','day','night','bank'].includes(this.params.get('shot'))) {
+    } else if (this.params.has('demo') || ['drive','chase','busted','day','night','bank','overview','copsaw'].includes(this.params.get('shot'))) {
       this.startGame(true);
     }
   }
@@ -913,13 +928,14 @@ class Game {
     }
     this.mode = 'play';
     this.updateRotateHint();
-    this.demo = !!demo && !['bank','day','night'].includes(this.params.get('shot'));
+    this.demo = !!demo && !['bank','day','night','overview','copsaw'].includes(this.params.get('shot'));
+    this.aerialView = this.params.get('shot') === 'overview';
     this.clock.getDelta();
     if (this.params.get('night') === '1' || this.params.get('shot') === 'night') {
       this.autoNight = false;
       this.night = 1;
       this.nightTarget = 1;
-    } else if (this.params.get('shot') === 'day' || this.params.get('shot') === 'bank' || this.params.get('shot') === 'drive') {
+    } else if (['day','bank','drive','overview','copsaw'].includes(this.params.get('shot'))) {
       this.autoNight = false;
       this.night = 0;
       this.nightTarget = 0;
@@ -936,6 +952,7 @@ class Game {
         this.enterCar(c);
       }
     }
+    if (this.params.get('shot') === 'copsaw') this._setupCopSawShot();
     if ((this.params.get('shot') === 'day' || this.params.get('shot') === 'night') && this.plaza) {
       const c = this.cars.find((x) => x.spec.id === 'sunny') || this.cars[0];
       if (c) {
@@ -947,9 +964,9 @@ class Game {
         this.enterCar(c);
       }
     }
-    if (demo && !['bank','day','night'].includes(this.params.get('shot'))) {
+    if (demo && !['bank','day','night','overview','copsaw'].includes(this.params.get('shot'))) {
       const c = this.cars.find((x) => x.spec.id === 'sunny') || this.cars[0];
-      c.pos.set(roadC(2), 0, roadC(3) - 22);
+      c.pos.set(roadC(PLAZA_I), 0, roadC(PLAZA_J + 1) - 22);
       c.heading = 0;
       c.speed = 16;
       c.vel.set(0, 0, -16);
@@ -984,6 +1001,54 @@ class Game {
     }
   }
 
+
+  _setupCopSawShot() {
+    const ix = roadC(2), iz = roadC(2);
+    const c = this.cars.find((x) => x.spec.id === 'sunny') || this.cars[0];
+    if (c) {
+      c.pos.set(ix, 0, iz);
+      c.heading = 0;
+      c.speed = 0;
+      c.vel.set(0, 0, 0);
+      this.placeCar(c);
+      this.enterCar(c);
+    }
+    this._spawnPatrolCops();
+    // cop stands in front of the player, looking at them along an open road
+    const cop = this.police[0];
+    if (cop) {
+      cop.pos.set(ix + 2.4, 0, iz - 28);
+      cop.heading = Math.PI;
+      cop.speed = 0;
+      cop.chasing = false;
+      cop.active = true;
+      cop.wrecked = false;
+      cop.mesh.visible = true;
+      this.placeCar(cop);
+    }
+    for (let i = 1; i < this.police.length; i++) {
+      const o = this.police[i];
+      o.pos.set(lotC(0) - 40, 0, lotC(0) - 40);
+      o.heading = Math.PI;
+      o.chasing = false;
+      o.speed = 0;
+      this.placeCar(o);
+    }
+    this.time = 2.6;
+    this.freezePatrol = true;
+    if (this.traffic) {
+      for (const t of this.traffic) {
+        if (Math.hypot(t.pos.x - ix, t.pos.z - iz) < 55) {
+          t.pos.set(ix + 90, 0, iz + 90);
+          t.speed = 0;
+          this.placeCar(t);
+        }
+      }
+    }
+    this.reportCrime(1, '⭐ You ran a red light!');
+    this.toastT = 8;
+  }
+
   quitToTitle() {
     this.leaveCar();
     this.mode = 'title';
@@ -995,7 +1060,7 @@ class Game {
     $('touch').classList.add('hidden');
     $('title').classList.remove('hidden');
     this.updateRotateHint();
-    this.player.position.set(lotC(2) + 8, 0, lotC(2) + 14);
+    this.player.position.set(lotC(PLAZA_I) + 8, 0, lotC(PLAZA_J) + 14);
     this.heading = 0;
   }
 
@@ -1106,7 +1171,7 @@ class Game {
 
   buildWorld() {
     const ground = new THREE.Mesh(
-      new THREE.PlaneGeometry(520, 520),
+      new THREE.PlaneGeometry(980, 980),
       new THREE.MeshLambertMaterial({ color: 0x5fbf62 })
     );
     ground.rotation.x = -Math.PI / 2;
@@ -1150,6 +1215,7 @@ class Game {
         curbs.push(boxAt(BLOCK + 0.8, 0.28, 0.35, x, 0.16, z + halfB));
         curbs.push(boxAt(0.35, 0.28, BLOCK + 0.8, x - halfB, 0.16, z));
         curbs.push(boxAt(0.35, 0.28, BLOCK + 0.8, x + halfB, 0.16, z));
+        const dist = districtOf(i, j);
         if (kind === 'park' || kind === 'plaza' || kind === 'stunt') {
           const grass = new THREE.Mesh(
             new THREE.BoxGeometry(BLOCK - 1, 0.08, BLOCK - 1),
@@ -1157,6 +1223,27 @@ class Game {
           );
           grass.position.set(x, 0.1, z);
           this.scene.add(grass);
+        } else if (kind === 'build' && dist === 'suburb') {
+          const lawn = new THREE.Mesh(
+            new THREE.BoxGeometry(BLOCK - 2, 0.08, BLOCK - 2),
+            new THREE.MeshLambertMaterial({ color: 0x7ed36a })
+          );
+          lawn.position.set(x, 0.1, z);
+          this.scene.add(lawn);
+        } else if (kind === 'build' && dist === 'industry') {
+          const pad = new THREE.Mesh(
+            new THREE.BoxGeometry(BLOCK - 2, 0.08, BLOCK - 2),
+            new THREE.MeshLambertMaterial({ color: 0x6a6e74 })
+          );
+          pad.position.set(x, 0.1, z);
+          this.scene.add(pad);
+        } else if (kind === 'build' && dist === 'harbor') {
+          const board = new THREE.Mesh(
+            new THREE.BoxGeometry(BLOCK - 2, 0.08, BLOCK - 2),
+            new THREE.MeshLambertMaterial({ color: 0xe6d5a8 })
+          );
+          board.position.set(x, 0.1, z);
+          this.scene.add(board);
         }
         if (kind === 'plaza') {
           const tile = new THREE.Mesh(
@@ -1205,7 +1292,10 @@ class Game {
         else if (kind === 'gas') this._fillGas(x, z);
         else if (kind === 'wash') this._fillWash(x, z);
         else if (kind === 'burger') this._fillBurger(x, z);
-        else this._fillBuildings(x, z, placements, bColors, rng);
+        else if (districtOf(i, j) === 'suburb') this._fillSuburb(x, z, placements, rng);
+        else if (districtOf(i, j) === 'industry') this._fillIndustry(x, z, placements, rng);
+        else if (districtOf(i, j) === 'harbor') this._fillHarbor(x, z, placements, rng);
+        else this._fillBuildings(x, z, placements, bColors, rng, districtOf(i, j));
       }
     }
 
@@ -1228,8 +1318,10 @@ class Game {
     this._decorateBuildings(placements, rng);
 
     this._placeTreesAndLamps();
+    this._placeHighway();
     this._placeWaterAndBridge();
     this._placeRiverJump();
+    this._placeBeachExtras();
     this._placeCoins();
     this._skyBits();
     this._placeActionWorld();
@@ -1237,21 +1329,25 @@ class Game {
     this._placeParkedCars(rng);
   }
 
-  _fillBuildings(x, z, out, colors, rng) {
-    const split = rng() > 0.55;
+  _fillBuildings(x, z, out, colors, rng, dist = 'city') {
+    const downtown = dist === 'downtown';
+    const pal = downtown
+      ? [0x9aa4b2, 0xc5d5e4, 0xdfe6ef, 0x8fa4b8, 0xb9c6d6, 0xe8eef5, 0x7f8fa0, 0xd0c8bc]
+      : colors;
+    const split = rng() > (downtown ? 0.35 : 0.55);
     if (split) {
       const gap = 1.6;
       const w = (BLOCK - 6 - gap) / 2;
       const d = BLOCK - 8;
-      const h1 = 5 + Math.floor(rng() * 18);
-      const h2 = 5 + Math.floor(rng() * 16);
-      out.push({ x: x - w / 2 - gap / 2, z, w, d, h: h1, color: colors[(rng() * colors.length) | 0] });
-      out.push({ x: x + w / 2 + gap / 2, z, w, d, h: h2, color: colors[(rng() * colors.length) | 0] });
+      const h1 = downtown ? 18 + Math.floor(rng() * 28) : 5 + Math.floor(rng() * 18);
+      const h2 = downtown ? 16 + Math.floor(rng() * 26) : 5 + Math.floor(rng() * 16);
+      out.push({ x: x - w / 2 - gap / 2, z, w, d, h: h1, color: pal[(rng() * pal.length) | 0] });
+      out.push({ x: x + w / 2 + gap / 2, z, w, d, h: h2, color: pal[(rng() * pal.length) | 0] });
     } else {
       const w = BLOCK - 7 - rng() * 4;
       const d = BLOCK - 7 - rng() * 4;
-      const h = 6 + Math.floor(rng() * 22);
-      out.push({ x, z, w, d, h, color: colors[(rng() * colors.length) | 0] });
+      const h = downtown ? 20 + Math.floor(rng() * 28) : 6 + Math.floor(rng() * 22);
+      out.push({ x, z, w, d, h, color: pal[(rng() * pal.length) | 0] });
     }
   }
 
@@ -1300,6 +1396,9 @@ class Game {
       this.scene.add(b);
     }
     this.plaza = new THREE.Vector3(x, 0, z);
+    const dtown = makeTextSign('DOWNTOWN', 10, 2, '#1d4ed8', '#ffe066', ['DOWNTOWN']);
+    dtown.position.set(x, 8, z + 16);
+    this.scene.add(dtown);
     this.scene.add(this._jobSign(x + 12, z + 12, 0xffd400));
     this.taxiSpot = new THREE.Vector3(x + 12, 0, z + 14);
   }
@@ -1538,6 +1637,159 @@ class Game {
     return g;
   }
 
+  _fillSuburb(x, z, out, rng) {
+    const colors = [0xf7efe3, 0xffe0bd, 0xf4d6c6, 0xe8f0d8, 0xfff3c4, 0xdce8f5];
+    const roofC = [0xc0392b, 0x8b4513, 0x4a6572, 0xb85c38, 0x555];
+    const n = 3 + ((rng() * 2) | 0);
+    for (let k = 0; k < n; k++) {
+      const ox = ((k % 2) * 2 - 1) * (7 + rng() * 3);
+      const oz = (k < 2 ? -1 : 1) * (7 + rng() * 3);
+      const hx = x + ox, hz = z + oz;
+      const w = 7 + rng() * 2, d = 6 + rng() * 2, h = 3.4;
+      out.push({ x: hx, z: hz, w, d, h, color: colors[(rng() * colors.length) | 0] });
+      const roof = new THREE.Mesh(
+        new THREE.ConeGeometry(Math.max(w, d) * 0.72, 2.2, 4),
+        new THREE.MeshLambertMaterial({ color: roofC[(rng() * roofC.length) | 0] })
+      );
+      roof.position.set(hx, h + 1.1, hz);
+      roof.rotation.y = Math.PI / 4;
+      this.scene.add(roof);
+      const chim = new THREE.Mesh(new THREE.BoxGeometry(0.5, 1.4, 0.5), new THREE.MeshLambertMaterial({ color: 0x8a4f3a }));
+      chim.position.set(hx + w * 0.2, h + 1.8, hz + d * 0.15);
+      this.scene.add(chim);
+    }
+  }
+
+  _fillIndustry(x, z, out, rng) {
+    const w = BLOCK - 10, d = BLOCK - 12, h = 6 + rng() * 4;
+    out.push({ x, z: z - 2, w, d, h, color: [0x8a8e95, 0x6d6258, 0x9aa0a8][(rng() * 3) | 0] });
+    const stripe = new THREE.Mesh(new THREE.BoxGeometry(w * 0.4, 0.8, 0.2), new THREE.MeshLambertMaterial({ color: 0xffb703 }));
+    stripe.position.set(x, 3, z - 2 + d / 2 + 0.1);
+    this.scene.add(stripe);
+    const tankN = this.lite ? 1 : 2;
+    for (let k = 0; k < tankN; k++) {
+      const tank = new THREE.Mesh(new THREE.CylinderGeometry(2.2, 2.2, 5, 10), new THREE.MeshLambertMaterial({ color: 0xb0b7c4 }));
+      tank.position.set(x + (k === 0 ? 10 : -10), 2.6, z + 12);
+      this.scene.add(tank);
+      this._addColliderBox(x + (k === 0 ? 10 : -10), z + 12, 4.4, 4.4, 5);
+    }
+    const stack = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.8, 10, 8), new THREE.MeshLambertMaterial({ color: 0x4a4e56 }));
+    stack.position.set(x - 8, 5, z - 8);
+    this.scene.add(stack);
+    if (!this._industrySign) {
+      const s = makeTextSign('INDUSTRIAL', 10, 2, '#4a4e56', '#ffb703', ['INDUSTRIAL']);
+      s.position.set(x, 9, z + 16);
+      this.scene.add(s);
+      this._industrySign = true;
+    }
+  }
+
+  _fillHarbor(x, z, out, rng) {
+    const w = 14 + rng() * 4, d = 10, h = 5;
+    out.push({ x, z: z - 4, w, d, h, color: [0xe8d5a3, 0x87a8b8, 0xf2efe6][(rng() * 3) | 0] });
+    if (!this.lite) {
+      for (let k = 0; k < 3; k++) this._addProp('crate', x + (k - 1) * 3, 0, z + 10);
+    }
+    if (!this._harborSign) {
+      const s = makeTextSign('HARBOR', 8, 2, '#1d4e7c', '#fff5d6', ['HARBOR']);
+      s.position.set(x, 8, z + 14);
+      this.scene.add(s);
+      this._harborSign = true;
+    }
+  }
+
+  _placeHighway() {
+    const halfW = 8;
+    const r = HALF_CITY + ROAD / 2 + 22;
+    this.highway = { r, halfW };
+    const hw = [], dash = [];
+    const len = r * 2 + halfW * 2;
+    // four sides, centered on axes
+    hw.push(boxAt(len, 0.08, halfW * 2, 0, 0.04, -r));
+    hw.push(boxAt(len, 0.08, halfW * 2, 0, 0.04, r));
+    hw.push(boxAt(halfW * 2, 0.08, len, -r, 0.04, 0));
+    hw.push(boxAt(halfW * 2, 0.08, len, r, 0.04, 0));
+    // on-ramps from mid outer city roads to the highway
+    const cityEdge = HALF_CITY + ROAD / 2;
+    for (const side of [
+      { x: 0, z0: cityEdge, z1: r, axis: 'z' },
+      { x: 0, z0: -cityEdge, z1: -r, axis: 'z' },
+      { z: 0, x0: cityEdge, x1: r, axis: 'x' },
+      { z: 0, x0: -cityEdge, x1: -r, axis: 'x' },
+    ]) {
+      if (side.axis === 'z') {
+        const mid = (side.z0 + side.z1) / 2;
+        const span = Math.abs(side.z1 - side.z0);
+        hw.push(boxAt(10, 0.08, span + 2, side.x, 0.045, mid));
+      } else {
+        const mid = (side.x0 + side.x1) / 2;
+        const span = Math.abs(side.x1 - side.x0);
+        hw.push(boxAt(span + 2, 0.08, 10, mid, 0.045, side.z));
+      }
+    }
+    const dashLen = 3, gap = 4;
+    for (const z of [-r, r]) {
+      for (let x = -r + 4; x < r - 4; x += dashLen + gap) dash.push(boxAt(dashLen, 0.02, 0.16, x, 0.09, z));
+    }
+    for (const x of [-r, r]) {
+      for (let z = -r + 4; z < r - 4; z += dashLen + gap) dash.push(boxAt(0.16, 0.02, dashLen, x, 0.09, z));
+    }
+    this.scene.add(new THREE.Mesh(mergeGeos(hw), new THREE.MeshLambertMaterial({ color: 0x3a3f4c })));
+    this.scene.add(new THREE.Mesh(mergeGeos(dash), new THREE.MeshBasicMaterial({ color: 0xf2f2f2 })));
+    const sign = makeTextSign('HIGHWAY', 10, 2, '#2b6b2e', '#ffffff', ['HIGHWAY']);
+    sign.position.set(0, 5, -r);
+    this.scene.add(sign);
+    const sign2 = sign.clone();
+    sign2.position.set(0, 5, r);
+    sign2.rotation.y = Math.PI;
+    this.scene.add(sign2);
+  }
+
+  _placeBeachExtras() {
+    const shore = this.waterZ;
+    const r = this.highway ? this.highway.r : HALF_CITY;
+    // pier
+    const pierX = 70;
+    const pier = new THREE.Mesh(new THREE.BoxGeometry(6, 0.35, 28), new THREE.MeshLambertMaterial({ color: 0xc4a574 }));
+    pier.position.set(pierX, 0.3, shore + 12);
+    this.scene.add(pier);
+    this.pier = { x: pierX, z: shore + 12 };
+    for (const sx of [-2.6, 2.6]) {
+      for (let k = 0; k < 4; k++) {
+        const post = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.22, 1.6, 6), new THREE.MeshLambertMaterial({ color: 0x8a6a40 }));
+        post.position.set(pierX + sx, 0.2, shore + 2 + k * 7);
+        this.scene.add(post);
+      }
+    }
+    // simple boats
+    const boatM = new THREE.MeshLambertMaterial({ color: 0xf4f1de });
+    for (let k = 0; k < (this.lite ? 1 : 3); k++) {
+      const boat = new THREE.Mesh(new THREE.BoxGeometry(3.2, 0.8, 8), boatM);
+      boat.position.set(pierX + 8 + k * 10, 0.2, shore + 16);
+      this.scene.add(boat);
+    }
+    // umbrellas
+    if (!this.lite) {
+      for (let k = 0; k < 5; k++) {
+        const ux = -40 + k * 12, uz = shore + 3;
+        const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 2.2, 6), new THREE.MeshLambertMaterial({ color: 0xddd }));
+        pole.position.set(ux, 1.1, uz);
+        const cap = new THREE.Mesh(new THREE.ConeGeometry(1.6, 0.7, 8), new THREE.MeshLambertMaterial({ color: [0xff6b9a, 0xffe066, 0x4d8fff][k % 3] }));
+        cap.position.set(ux, 2.3, uz);
+        this.scene.add(pole, cap);
+      }
+    }
+    const light = new THREE.Mesh(new THREE.CylinderGeometry(1.1, 1.6, 10, 8), new THREE.MeshLambertMaterial({ color: 0xf2efe6 }));
+    light.position.set(-r + 10, 5, shore + 8);
+    this.scene.add(light);
+    const top = new THREE.Mesh(new THREE.ConeGeometry(2.2, 2.2, 8), new THREE.MeshLambertMaterial({ color: 0xc0392b }));
+    top.position.set(-r + 10, 11, shore + 8);
+    this.scene.add(top);
+    const be = makeTextSign('BEACH', 8, 2, '#1d4ed8', '#ffe066', ['BEACH']);
+    be.position.set(-20, 4, shore - 2);
+    this.scene.add(be);
+  }
+
   _jobSign(x, z, color) {
     const g = new THREE.Group();
     const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.1, 3.2, 6), new THREE.MeshLambertMaterial({ color: 0x555b68 }));
@@ -1613,18 +1865,21 @@ class Game {
   }
 
   _placeWaterAndBridge() {
-    const shore = HALF_CITY + ROAD / 2 + 6;
+    const shore = this.highway
+      ? this.highway.r + this.highway.halfW + 10
+      : HALF_CITY + ROAD / 2 + 6;
     this.waterZ = shore;
     const water = new THREE.Mesh(
-      new THREE.PlaneGeometry(420, 140),
-      new THREE.MeshLambertMaterial({ color: 0x3cb0c8, transparent: true, opacity: 0.92 })
+      new THREE.PlaneGeometry(760, 240),
+      new THREE.MeshLambertMaterial({ color: 0x3cb0c8, transparent: true, opacity: 0.94 })
     );
     water.rotation.x = -Math.PI / 2;
-    water.position.set(0, -0.15, shore + 70);
+    // sit just above the ground plane so the harbor is visible from the air
+    water.position.set(0, 0.12, shore + 100);
     this.scene.add(water);
     this.waterMesh = water;
     const sand = new THREE.Mesh(
-      new THREE.BoxGeometry(420, 0.2, 10),
+      new THREE.BoxGeometry(720, 0.2, 14),
       new THREE.MeshLambertMaterial({ color: 0xf2e0a8 })
     );
     sand.position.set(0, 0.05, shore + 2);
@@ -1725,7 +1980,7 @@ class Game {
     this.scene.add(this.sunBall);
     this.moonBall = new THREE.Mesh(new THREE.SphereGeometry(4, 12, 10), new THREE.MeshBasicMaterial({ color: 0xdde6ff }));
     this.scene.add(this.moonBall);
-    const skyGeo = new THREE.SphereGeometry(380, 24, 16);
+    const skyGeo = new THREE.SphereGeometry(620, 24, 16);
     const skyMat = new THREE.ShaderMaterial({
       side: THREE.BackSide,
       depthWrite: false,
@@ -1828,7 +2083,7 @@ class Game {
   _placeParkedCars(rng) {
     this.parked = [];
     const colors = [0x4d8fff, 0xff6b9a, 0x2bb673, 0xffb703, 0xf4f1de, 0x222244, 0x80cbc4, 0xff7043];
-    const n = this.lite ? 8 : 16;
+    const n = this.lite ? 10 : 24;
     let k = 0;
     for (let i = 0; i <= N && k < n; i++) {
       for (let j = 0; j < N && k < n; j++) {
@@ -1857,13 +2112,17 @@ class Game {
   _placeHiddenStars() {
     const spots = [
       { id: 'island', x: 0, z: (this.island && this.island.z) + 10, y: 1.4 },
-      { id: 'fountain', x: lotC(2) - 10, z: lotC(2) - 10, y: 1.3 },
+      { id: 'fountain', x: lotC(PLAZA_I) - 10, z: lotC(PLAZA_J) - 10, y: 1.3 },
       { id: 'stunt', x: lotC(0) - 10, z: lotC(0) + 12, y: 1.3 },
-      { id: 'parkA', x: lotC(0) + 8, z: lotC(4) - 8, y: 1.3 },
-      { id: 'parkB', x: lotC(4) - 8, z: lotC(0) + 8, y: 1.3 },
-      { id: 'post', x: lotC(5) + 10, z: lotC(1) + 10, y: 1.3 },
+      { id: 'parkA', x: lotC(1) + 8, z: lotC(5) - 8, y: 1.3 },
+      { id: 'parkB', x: lotC(5) - 8, z: lotC(1) + 8, y: 1.3 },
+      { id: 'post', x: lotC(N - 1) + 10, z: lotC(1) + 10, y: 1.3 },
       { id: 'shore', x: -22, z: this.waterZ - 4, y: 1.4 },
       { id: 'bridge', x: 0, z: (this.bridge.flat0 + this.bridge.flat1) / 2, y: 5.2 },
+      { id: 'harbor', x: 70, z: (this.waterZ || 0) + 12, y: 1.4 },
+      { id: 'highway', x: 0, z: this.highway ? -this.highway.r : -HALF_CITY, y: 1.3 },
+      { id: 'industry', x: lotC(N - 1) - 8, z: lotC(0) + 8, y: 1.3 },
+      { id: 'suburb', x: lotC(1) + 6, z: lotC(1) - 6, y: 1.3 },
     ];
     const geo = new THREE.OctahedronGeometry(0.55);
     const mat = new THREE.MeshBasicMaterial({ color: 0xffe566 });
@@ -1892,7 +2151,7 @@ class Game {
         }
         this.sfx.success();
         this.addCoins(3, 'Hidden star!');
-        this.toast('🌟 You found a hidden star!  ' + this.save.hiddenStars.length + ' / 8');
+        this.toast('🌟 You found a hidden star!  ' + this.save.hiddenStars.length + ' / ' + HIDDEN_STAR_TOTAL);
       }
     }
   }
@@ -1931,15 +2190,15 @@ class Game {
     const hairs = [0x2b1d14, 0x6b3a1f, 0x1a1a1a, 0xffe066, 0xc0392b, 0xf5f5f5];
 
     this.player = makePerson(0x2bb673, 0x2c3e6b, 0xf3c7a1, 0x2b1d14);
-    this.player.position.set(lotC(2) + 8, 0, lotC(2) + 14);
+    this.player.position.set(lotC(PLAZA_I) + 8, 0, lotC(PLAZA_J) + 14);
     this.scene.add(this.player);
     this.lastSafe.copy(this.player.position);
 
     const carSpawns = [
-      { id: 'sunny', x: lotC(2) + 8, z: lotC(2) + 20, h: Math.PI },
-      { id: 'taxi', x: lotC(2) + 18, z: lotC(2) + 4, h: Math.PI / 2 },
-      { id: 'hauler', x: lotC(5) - 6, z: lotC(1) + 16, h: 0 },
-      { id: 'bolt', x: lotC(3), z: roadC(3) + 4, h: -Math.PI / 2 },
+      { id: 'sunny', x: lotC(PLAZA_I) + 8, z: lotC(PLAZA_J) + 20, h: Math.PI },
+      { id: 'taxi', x: lotC(PLAZA_I) + 18, z: lotC(PLAZA_J) + 4, h: Math.PI / 2 },
+      { id: 'hauler', x: lotC(N - 1) - 6, z: lotC(1) + 16, h: 0 },
+      { id: 'bolt', x: lotC(PLAZA_I), z: roadC(PLAZA_I) + 4, h: -Math.PI / 2 },
       { id: 'rocket', x: lotC(0) + 16, z: lotC(0) - 16, h: Math.PI / 2 },
     ];
     for (const s of carSpawns) {
@@ -1961,7 +2220,7 @@ class Game {
 
     const routes = this._trafficRoutes();
     const trafficColors = [0x6ec6ff, 0xff8fab, 0x95d5b2, 0xffd6a5, 0xc8b6ff, 0x90a4ae, 0xfff3b0, 0x80cbc4];
-    const trafficN = this.lite ? 5 : 8;
+    const trafficN = this.lite ? 6 : 12;
     for (let i = 0; i < trafficN; i++) {
       const spec = {
         id: 'ai' + i, name: 'Car', color: trafficColors[i], accent: 0xffffff,
@@ -2013,7 +2272,18 @@ class Game {
       new THREE.Vector3(coords[N - 1] - off, 0, coords[N - 1] - off),
       new THREE.Vector3(coords[1] - off, 0, coords[N - 1] - off),
     ];
-    return [loopA, loopB, loopC, loopA.slice().reverse(), loopC.slice().reverse()];
+    const routes = [loopA, loopB, loopC, loopA.slice().reverse(), loopC.slice().reverse()];
+    if (this.highway) {
+      const R = this.highway.r, o = 3;
+      const hw = [
+        new THREE.Vector3(-R + o, 0, -R + o),
+        new THREE.Vector3(R - o, 0, -R + o),
+        new THREE.Vector3(R - o, 0, R - o),
+        new THREE.Vector3(-R + o, 0, R - o),
+      ];
+      routes.push(hw, hw.slice().reverse());
+    }
+    return routes;
   }
 
   _sidewalkLoop(i, j) {
@@ -2066,6 +2336,14 @@ class Game {
     }
     if (this.bridge && Math.abs(x) <= this.bridge.w / 2 + 1 && z >= this.bridge.minZ && z <= this.bridge.maxZ) return true;
     if (this.island && Math.hypot(x - this.island.x, z - this.island.z) < this.island.r) return true;
+    if (this.highway) {
+      const R = this.highway.r, h = this.highway.halfW + 1.2;
+      if ((Math.abs(Math.abs(x) - R) <= h && Math.abs(z) <= R + h) ||
+          (Math.abs(Math.abs(z) - R) <= h && Math.abs(x) <= R + h)) return true;
+      const edge = HALF_CITY + ROAD / 2;
+      if (Math.abs(x) <= 6 && ((z > edge && z < R) || (z < -edge && z > -R))) return true;
+      if (Math.abs(z) <= 6 && ((x > edge && x < R) || (x < -edge && x > -R))) return true;
+    }
     return false;
   }
 
@@ -2073,6 +2351,7 @@ class Game {
     if (y > 0.6) return false;
     if (this.bridge && Math.abs(x) <= this.bridge.w / 2 + 0.4 && z >= this.bridge.minZ && z <= this.bridge.maxZ) return false;
     if (this.island && Math.hypot(x - this.island.x, z - this.island.z) < this.island.r - 1) return false;
+    if (this.highway && this.onRoad(x, z)) return false;
     return z > this.waterZ + 1;
   }
 
@@ -2091,9 +2370,9 @@ class Game {
         hit = true;
       }
     }
-    const bound = HALF_CITY + 90;
+    const bound = (this.highway ? this.highway.r : HALF_CITY) + 40;
     pos.x = clamp(pos.x, -bound, bound);
-    pos.z = clamp(pos.z, -HALF_CITY - 20, this.island.z + 36);
+    pos.z = clamp(pos.z, -bound, this.island ? this.island.z + 36 : bound);
     return hit;
   }
 
@@ -2170,6 +2449,8 @@ class Game {
     this.updateDay(dt);
     if (this.mode === 'play') this.updatePlay(dt);
     else this.updateIdle(dt);
+    this.updateFarCull();
+    this._updateCopBang();
     this.updateCamera(dt);
     this.drawMinimap();
     this.sfx.tickMusic();
@@ -2443,8 +2724,8 @@ class Game {
         d.position.set(Math.sin(a) * 0.4, 2.2 + (a % 1.6) * 1.1, Math.cos(a * 1.3) * 0.4);
       });
     }
-    this.scene.fog.near = lerp(90, 50, this.night);
-    this.scene.fog.far = lerp(280, 170, this.night);
+    this.scene.fog.near = lerp(this.fogNearDay || 90, 50, this.night);
+    this.scene.fog.far = lerp(this.fogFarDay || 280, this.lite ? 150 : 240, this.night);
     this.hemi.intensity = lerp(0.95, 0.18, this.night);
     this.sun.intensity = lerp(1.05, 0.08, this.night);
     const ang = lerp(1.15, -0.2, this.night);
@@ -2490,10 +2771,22 @@ class Game {
   }
 
   updateCamera(dt) {
+    if (this.aerialView) {
+      this.scene.fog.near = 280;
+      this.scene.fog.far = 1800;
+      if (this.camera.far < 2200) {
+        this.camera.far = 2200;
+        this.camera.updateProjectionMatrix();
+      }
+      // South of the harbor, looking north over the beach, highway, and city
+      this.camera.position.set(30, 185, 455);
+      this.camera.lookAt(0, 4, 10);
+      return;
+    }
     if (this.mode === 'title' || (this.mode !== 'play' && this.mode !== 'pause' && this.mode !== 'busted')) {
       const t = this.time * 0.12;
-      this.camera.position.set(Math.sin(t) * 70, 38, Math.cos(t) * 70);
-      this.camera.lookAt(0, 2, 0);
+      this.camera.position.set(Math.sin(t) * 130, 64, Math.cos(t) * 130);
+      this.camera.lookAt(lotC(PLAZA_I), 4, lotC(PLAZA_J));
       return;
     }
     const inCar = !!this.playerCar;
@@ -2524,6 +2817,7 @@ class Game {
   updateMissions(dt) {
     this.updateJobMarkers(dt);
     if (!this.mission) {
+      if (this.aerialView || ['overview','copsaw'].includes(this.params.get('shot'))) return;
       if (!this.jobArmed) this.jobArmed = {};
       const px = this.playerCar ? this.playerCar.pos.x : this.player.position.x;
       const pz = this.playerCar ? this.playerCar.pos.z : this.player.position.z;
@@ -2617,10 +2911,10 @@ class Game {
 
   jobStarts() {
     return [
-      { type: 'delivery', pos: this.postSpot || new THREE.Vector3(lotC(5), 0, lotC(1) + 16) },
-      { type: 'taxi', pos: this.taxiSpot || new THREE.Vector3(lotC(2) + 12, 0, lotC(2) + 14) },
+      { type: 'delivery', pos: this.postSpot || new THREE.Vector3(lotC(N - 1), 0, lotC(1) + 16) },
+      { type: 'taxi', pos: this.taxiSpot || new THREE.Vector3(lotC(PLAZA_I) + 12, 0, lotC(PLAZA_J) + 14) },
       { type: 'race', pos: this.raceSpot || new THREE.Vector3(lotC(0) + 14, 0, lotC(0) - 18) },
-      { type: 'getaway', pos: this.getawaySpot || new THREE.Vector3(lotC(1) + 16, 0, lotC(3) + 16) },
+      { type: 'getaway', pos: this.getawaySpot || new THREE.Vector3(lotC(2) + 16, 0, lotC(5) + 16) },
     ];
   }
 
@@ -2680,8 +2974,8 @@ class Game {
     if (type === 'delivery') {
       this.mission = {
         type, stage: 'pick', time: 90,
-        pick: new THREE.Vector3(lotC(5), 0, lotC(1) + 4),
-        drop: new THREE.Vector3(lotC(0) + 4, 0, lotC(4)),
+        pick: new THREE.Vector3(lotC(N - 1), 0, lotC(1) + 4),
+        drop: new THREE.Vector3(lotC(0) + 4, 0, lotC(N - 2)),
         title: 'Package run',
         pickText: 'Pick up the package at the orange marker.',
         dropText: 'Deliver the package to the green marker.',
@@ -2715,7 +3009,7 @@ class Game {
       };
       this.toast('Race! Drive through every checkpoint.');
     } else if (type === 'getaway') {
-      const pick = (this.getawaySpot || new THREE.Vector3(lotC(1) + 16, 0, lotC(3) + 16)).clone();
+      const pick = (this.getawaySpot || new THREE.Vector3(lotC(2) + 16, 0, lotC(5) + 16)).clone();
       this.mission = {
         type, stage: 'grab', time: 100, pick,
         title: 'Getaway',
@@ -2764,7 +3058,32 @@ class Game {
       if (hidden) esc.textContent = 'Hiding... ' + Math.max(0, 16.5 - this.escapeT).toFixed(0) + 's to lose a star';
     }
     const sc = $('star-count');
-    if (sc) sc.textContent = (this.save.hiddenStars ? this.save.hiddenStars.length : 0) + '/8';
+    if (sc) sc.textContent = (this.save.hiddenStars ? this.save.hiddenStars.length : 0) + '/' + HIDDEN_STAR_TOTAL;
+  }
+
+  updateFarCull() {
+    if (this.aerialView) return;
+    const p = this.playerCar ? this.playerCar.pos : (this.player ? this.player.position : { x: 0, z: 0 });
+    const cut = this.lite ? 100 : 170;
+    const cutT = this.lite ? 120 : 220;
+    if (this.parked) {
+      for (const c of this.parked) {
+        if (!c.mesh || c.wrecked) continue;
+        c.mesh.visible = Math.hypot(c.pos.x - p.x, c.pos.z - p.z) < cut;
+      }
+    }
+    if (this.props) {
+      for (const pr of this.props) {
+        if (!pr.mesh || pr.broken) continue;
+        pr.mesh.visible = Math.hypot(pr.x - p.x, pr.z - p.z) < cut;
+      }
+    }
+    if (this.traffic) {
+      for (const tr of this.traffic) {
+        if (!tr.mesh || tr.wrecked) continue;
+        tr.mesh.visible = Math.hypot(tr.pos.x - p.x, tr.pos.z - p.z) < cutT;
+      }
+    }
   }
 
   drawMinimap() {
@@ -2780,12 +3099,24 @@ class Game {
     ctx.clip();
     const p = this.playerCar ? this.playerCar.pos : this.player.position;
     const hd = this.playerCar ? this.playerCar.heading : this.heading;
-    const scale = 1.15;
+    const span = (this.highway ? this.highway.r : HALF_CITY) + 70;
+    const scale = this.aerialView ? ((W / 2 - 4) / span) : Math.max(0.28, (W / 2 - 8) / (span * 0.95));
     ctx.fillStyle = '#3d8a4e';
     ctx.fillRect(0, 0, W, H);
     ctx.translate(W / 2, H / 2);
-    ctx.rotate(hd);
-    ctx.translate(-p.x * scale, -p.z * scale);
+    if (!this.aerialView) ctx.rotate(hd);
+    const cx = this.aerialView ? 0 : p.x, cz = this.aerialView ? 0 : p.z;
+    ctx.translate(-cx * scale, -cz * scale);
+
+    const dcol = { downtown: '#8a96a6', suburb: '#8ed48a', industry: '#6a6e74', harbor: '#e6d5a8', city: '#d9a08a' };
+    for (let i = 0; i < N; i++) {
+      for (let j = 0; j < N; j++) {
+        const kind = specialLot(i, j);
+        const dist = districtOf(i, j);
+        ctx.fillStyle = kind === 'park' || kind === 'plaza' ? '#6dcc6a' : (dcol[dist] || '#d9a08a');
+        ctx.fillRect((lotC(i) - BLOCK / 2) * scale, (lotC(j) - BLOCK / 2) * scale, BLOCK * scale, BLOCK * scale);
+      }
+    }
 
     ctx.fillStyle = '#3a4152';
     const half = ROAD / 2;
@@ -2794,12 +3125,20 @@ class Game {
       ctx.fillRect((r - half) * scale, (-HALF_CITY - half) * scale, ROAD * scale, (HALF_CITY + half) * 2 * scale);
       ctx.fillRect((-HALF_CITY - half) * scale, (r - half) * scale, (HALF_CITY + half) * 2 * scale, ROAD * scale);
     }
+    if (this.highway) {
+      const R = this.highway.r, h = this.highway.halfW;
+      ctx.fillStyle = '#3a3f4c';
+      ctx.fillRect((-R - h) * scale, (-R - h) * scale, (R * 2 + h * 2) * scale, (h * 2) * scale);
+      ctx.fillRect((-R - h) * scale, (R - h) * scale, (R * 2 + h * 2) * scale, (h * 2) * scale);
+      ctx.fillRect((-R - h) * scale, (-R - h) * scale, (h * 2) * scale, (R * 2 + h * 2) * scale);
+      ctx.fillRect((R - h) * scale, (-R - h) * scale, (h * 2) * scale, (R * 2 + h * 2) * scale);
+    }
     if (this.bridge) {
       ctx.fillStyle = '#7a8194';
       ctx.fillRect(-4 * scale, this.bridge.minZ * scale, 8 * scale, (this.bridge.maxZ - this.bridge.minZ) * scale);
     }
     ctx.fillStyle = '#3cb0c8';
-    ctx.fillRect(-180 * scale, this.waterZ * scale, 360 * scale, 120 * scale);
+    ctx.fillRect(-360 * scale, this.waterZ * scale, 720 * scale, 180 * scale);
     ctx.fillStyle = '#62c25a';
     ctx.beginPath();
     ctx.arc(this.island.x * scale, this.island.z * scale, this.island.r * scale, 0, Math.PI * 2);
@@ -2929,9 +3268,9 @@ class Game {
     for (let k = 0; k < 8; k++) {
       this._addProp('cone', roadC(4) + 6, 0, roadC(1) + 8 + k * 3);
     }
-    // traffic lights at even intersections
-    for (let i = 0; i <= N; i += 2) {
-      for (let j = 0; j <= N; j += 2) {
+    const lightStep = this.lite ? 4 : 2;
+    for (let i = 0; i <= N; i += lightStep) {
+      for (let j = 0; j <= N; j += lightStep) {
         this._addTrafficLight(roadC(i), roadC(j));
       }
     }
@@ -2943,10 +3282,12 @@ class Game {
       [roadC(2) + 9, roadC(5) - 10],
       [roadC(0) + 9, roadC(3) + 16],
       [roadC(4) - 9, roadC(0) + 16],
+      [roadC(6) + 9, roadC(3) - 16],
+      [roadC(7) - 9, roadC(6) + 10],
     ];
     for (const s of stops) this._addBusStop(s[0], s[1]);
     // getaway sign
-    const gx = lotC(1) + 16, gz = lotC(3) + 16;
+    const gx = lotC(2) + 16, gz = lotC(5) + 16;
     this.scene.add(this._jobSign(gx, gz, 0x9b5de5));
     this.getawaySpot = new THREE.Vector3(gx, 0, gz + 2);
   }
@@ -3048,7 +3389,7 @@ class Game {
       return ped;
     };
     // walkers
-    const nWalk = this.lite ? 12 : 20;
+    const nWalk = this.lite ? 12 : 26;
     for (let i = 0; i < nWalk; i++) {
       const li = i % N, lj = (i * 2 + 1) % N;
       const loop = this._sidewalkLoop(li, lj);
@@ -3088,7 +3429,7 @@ class Game {
     // sitters
     const nSit = this.lite ? 4 : 6;
     for (let i = 0; i < nSit; i++) {
-      const b = this.benches[i] || { x: lotC(2) + 8, z: lotC(2), rot: 0 };
+      const b = this.benches[i] || { x: lotC(PLAZA_I) + 8, z: lotC(PLAZA_J), rot: 0 };
       const ped = add('sit', { home: { x: b.x, z: b.z }, sitRot: b.rot || 0 });
       ped.mesh.position.set(b.x, 0, b.z);
       ped.mesh.rotation.y = ped.sitRot;
@@ -3116,7 +3457,7 @@ class Game {
     const danger = this.playerCar ? this.playerCar.pos : this.player.position;
     const carFast = !!(this.playerCar && Math.abs(this.playerCar.speed) > 6);
     const dangerR = this.playerCar ? (carFast ? 7.5 : 5) : 2.6;
-    const RANGE = 90;
+    const RANGE = this.lite ? 80 : 120;
     const onFoot = !this.playerCar;
     const nsGreen = Math.floor(this.time / 5) % 2 === 0;
     for (const ped of this.peds) {
@@ -3172,7 +3513,7 @@ class Game {
           this.scene.add(ped.stars);
         }
         this.sfx.yelp();
-        this.addWanted(1, '⭐ Bumped a person!');
+        this.reportCrime(1, '⭐ Bumped a person!');
         continue;
       }
 
@@ -3259,7 +3600,7 @@ class Game {
 
   _spawnPatrolCops() {
     const routes = this._trafficRoutes();
-    const n = 4;
+    const n = 5;
     while (this.police.length < n) {
       const spec = { id: 'cop', name: 'Police', color: 0xf4f6fa, accent: 0x1a1a2a, max: 30, accel: 24, brake: 38, steer: 2.6, grip: 0.14, kind: 'police' };
       const mesh = makeCarMesh(spec);
@@ -3388,10 +3729,95 @@ class Game {
       }
     }
     this.addCoins(20);
-    this.addWanted(3, '⭐⭐⭐ Bank robbery!');
+    this.reportCrime(3, '⭐⭐⭐ Bank robbery! The alarm called the police!', { alarm: true });
   }
 
-  addWanted(amount, why) {
+
+  copCanSee(cop, pos, range = 72) {
+    if (!cop || cop.wrecked || !cop.mesh || !cop.mesh.visible) return false;
+    const dx = pos.x - cop.pos.x, dz = pos.z - cop.pos.z;
+    const dist = Math.hypot(dx, dz);
+    if (dist < 0.4) return true;
+    if (dist > range) return false;
+    const fx = Math.sin(cop.heading), fz = -Math.cos(cop.heading);
+    const ndot = (fx * dx + fz * dz) / dist;
+    if (ndot < 0.25) return false; // ~150 degree wide cone
+    return this.hasLineOfSight(cop.pos.x, cop.pos.z, pos.x, pos.z);
+  }
+
+  hasLineOfSight(ax, az, bx, bz) {
+    const dx = bx - ax, dz = bz - az;
+    const dist = Math.hypot(dx, dz);
+    const steps = Math.max(2, Math.ceil(dist / 3));
+    for (let s = 1; s < steps; s++) {
+      const t = s / steps;
+      const x = ax + dx * t, z = az + dz * t;
+      for (const b of this.colliders) {
+        if ((b.h || 0) < 3.2) continue;
+        if (x > b.minX && x < b.maxX && z > b.minZ && z < b.maxZ) return false;
+      }
+    }
+    return true;
+  }
+
+  copWhoSees(pos) {
+    let best = null, bestD = 999;
+    for (const c of this.police) {
+      if (!this.copCanSee(c, pos, 72)) continue;
+      const d = Math.hypot(pos.x - c.pos.x, pos.z - c.pos.z);
+      if (d < bestD) { bestD = d; best = c; }
+    }
+    return best;
+  }
+
+  _copSpots(cop) {
+    if (!cop) return;
+    if (!this._bangMesh) {
+      const g = new THREE.Group();
+      const bg = new THREE.Mesh(new THREE.SphereGeometry(0.42, 10, 8), new THREE.MeshBasicMaterial({ color: 0xffe066 }));
+      const bang = makeTextSign('!', 0.9, 0.9, '#ffe066', '#111111', ['!']);
+      bang.position.z = 0.45;
+      g.add(bg, bang);
+      this.scene.add(g);
+      this._bangMesh = g;
+    }
+    cop.bangUntil = this.time + 2.4;
+    this._bangCop = cop;
+    this._bangMesh.visible = true;
+  }
+
+  _updateCopBang() {
+    if (!this._bangMesh) return;
+    const cop = this._bangCop;
+    if (!cop || this.time > (cop.bangUntil || 0) || cop.wrecked) {
+      this._bangMesh.visible = false;
+      return;
+    }
+    this._bangMesh.visible = true;
+    this._bangMesh.position.set(cop.pos.x, 3.4, cop.pos.z);
+    this._bangMesh.lookAt(this.camera.position);
+  }
+
+  reportCrime(amount, why, opts) {
+    if (this.mode !== 'play') return;
+    const p = this.playerCar ? this.playerCar.pos : this.player.position;
+    if (opts && opts.alarm) {
+      this.addWanted(amount, why || '⭐⭐⭐ Bank robbery! The alarm called the police!');
+      return;
+    }
+    const cop = (opts && opts.cop) || this.copWhoSees(p);
+    if (cop) {
+      this._copSpots(cop);
+      this.addWanted(amount, '👀 A cop saw that! ⭐');
+    } else {
+      if (!this.lastCrimeToast || this.time - this.lastCrimeToast > 1.0) {
+        this.toast('😅 No cops saw that');
+        this.lastCrimeToast = this.time;
+      }
+    }
+  }
+
+    addWanted(amount, why) {
     if (this.mode !== 'play') return;
     if (this.time - this.lastWantedAt < 1.15 && amount < 2) return;
     this.lastWantedAt = this.time;
@@ -3410,13 +3836,16 @@ class Game {
   updateWanted(dt) {
     if (this.stars <= 0) { this.escapeT = 0; this.sfx.sirenTick(false); return; }
     let nearest = 999;
+    let seen = false;
+    const p = this.playerCar ? this.playerCar.pos : this.player.position;
     for (const c of this.police) {
       if (!c.active || c.wrecked) continue;
-      const p = this.playerCar ? this.playerCar.pos : this.player.position;
-      nearest = Math.min(nearest, Math.hypot(c.pos.x - p.x, c.pos.z - p.z));
+      const d = Math.hypot(c.pos.x - p.x, c.pos.z - p.z);
+      nearest = Math.min(nearest, d);
+      if (d < 60 && this.hasLineOfSight(c.pos.x, c.pos.z, p.x, p.z)) seen = true;
     }
     this.sfx.sirenTick(nearest < 70);
-    if (nearest > 55) this.escapeT += dt;
+    if (!seen) this.escapeT += dt;
     else this.escapeT = 0;
     if (this.escapeT > 16.5) {
       this.stars -= 1;
@@ -3437,7 +3866,7 @@ class Game {
     if (this.stars <= 0) { this.returnToPatrol(); return; }
     this._spawnPatrolCops();
     const p = this.playerCar ? this.playerCar.pos : this.player.position;
-    const need = Math.min(5, Math.max(2, this.stars));
+    const need = Math.min(5, Math.max(2, this.stars)); // at most the 5 patrol cars
     let on = 0;
     for (const c of this.police) {
       if (c.wrecked) continue;
@@ -3462,7 +3891,7 @@ class Game {
       }
       on++;
     }
-    while (on < need) {
+    while (on < need && this.police.length < 5) {
       const spec = { id: 'cop', name: 'Police', color: 0xf4f6fa, accent: 0x1a1a2a, max: 30, accel: 24, brake: 38, steer: 2.6, grip: 0.14, kind: 'police' };
       const mesh = makeCarMesh(spec);
       const routes = this._trafficRoutes();
@@ -3504,6 +3933,17 @@ class Game {
   }
 
   updatePolice(dt) {
+    if (this.freezePatrol) {
+      for (const cop of this.police) {
+        cop.speed = 0;
+        if (cop.mesh) {
+          this.placeCar(cop);
+          if (cop.mesh.userData.lightR) cop.mesh.userData.lightR.visible = this.stars > 0;
+          if (cop.mesh.userData.lightB) cop.mesh.userData.lightB.visible = this.stars > 0;
+        }
+      }
+      return;
+    }
     if (this.stars <= 0) {
       for (const cop of this.police) cop.chasing = false;
     }
@@ -3610,7 +4050,7 @@ class Game {
       this.hideMission();
       this.toast('The getaway failed.');
     }
-    const plaza = this.plaza || new THREE.Vector3(lotC(2) + 8, 0, lotC(2) + 16);
+    const plaza = this.plaza || new THREE.Vector3(lotC(PLAZA_I) + 8, 0, lotC(PLAZA_J) + 16);
     const car = this.playerCar || this.cars.find((c) => c.spec.id === this.save.selected) || this.cars[0];
     if (car) {
       car.speed = 0;
@@ -3670,8 +4110,8 @@ class Game {
       this.sfx.crash();
       a.speed *= 0.55;
       b.speed *= 0.4;
-      if (!isCop && a === this.playerCar && rel > 8) this.addWanted(1, '⭐ You crashed into traffic!');
-      if (isCop && a === this.playerCar && Math.abs(a.speed || 0) > 10 && rel > 10) this.addWanted(1, '⭐ You bumped a police car!');
+      if (!isCop && a === this.playerCar && rel > 8) this.reportCrime(1, '⭐ You crashed into traffic!');
+      if (isCop && a === this.playerCar && Math.abs(a.speed || 0) > 10 && rel > 10) this.reportCrime(1, '⭐ You bumped a police car!', { cop: b });
     }
   }
 
@@ -3722,7 +4162,7 @@ class Game {
       if (this.stars > 0) this.ensureCops();
       return;
     } else {
-      const plaza = this.plaza || new THREE.Vector3(lotC(2) + 8, 0, lotC(2) + 20);
+      const plaza = this.plaza || new THREE.Vector3(lotC(PLAZA_I) + 8, 0, lotC(PLAZA_J) + 20);
       car.pos.copy(plaza);
     }
     car.mesh.visible = true;
@@ -3743,7 +4183,7 @@ class Game {
           const red = movingNS ? !nsGreen : nsGreen;
           if (red) {
             this.redLock = key;
-            this.addWanted(1, '⭐ You ran a red light!');
+            this.reportCrime(1, '⭐ You ran a red light!');
           }
           return;
         }
@@ -3771,7 +4211,7 @@ class Game {
         pr.mesh.visible = false;
         this.spawnSparks(pr.x, 0.6, pr.z);
         this.sfx.smash();
-        this.addWanted(1, pr.type === 'hydrant' ? '⭐ You smashed a hydrant!' : '⭐ You smashed something!');
+        this.reportCrime(1, pr.type === 'hydrant' ? '⭐ You smashed a hydrant!' : '⭐ You smashed something!');
         if (pr.type === 'hydrant') {
           const spray = new THREE.Mesh(
             new THREE.CylinderGeometry(0.12, 0.35, 4, 8),
