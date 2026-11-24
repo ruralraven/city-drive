@@ -236,6 +236,7 @@ class Input {
     this.enterQueued = false;
     this.hornQueued = false;
     this.nitroBtn = 0;
+    this.driftBtn = 0;
     this.joyId = null;
   }
   bind() {
@@ -246,24 +247,53 @@ class Input {
       if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(e.code)) e.preventDefault();
     });
     window.addEventListener('keyup', (e) => { this.keys[e.code] = false; });
-    this._joy($('joy-base'));
+    this._joy($('joy-base') || $('joy-wrap'));
     this._hold($('btn-gas'), (v) => { this.gas = v; });
     this._hold($('btn-brake'), (v) => { this.brake = v; });
     if ($('btn-nitro')) this._hold($('btn-nitro'), (v) => { this.nitroBtn = v; });
+    if ($('btn-drift')) this._hold($('btn-drift'), (v) => { this.driftBtn = v; });
     $('btn-enter').addEventListener('pointerdown', (e) => { e.preventDefault(); this.enterQueued = true; });
     $('btn-horn').addEventListener('pointerdown', (e) => { e.preventDefault(); this.hornQueued = true; });
     window.addEventListener('pointerup', (e) => this._up(e));
     window.addEventListener('pointercancel', (e) => this._up(e));
+    this._blockBrowserGestures();
+  }
+  _blockBrowserGestures() {
+    const inMenu = (t) => t && t.closest && t.closest('.screen');
+    const block = (e) => { if (!inMenu(e.target)) e.preventDefault(); };
+    document.addEventListener('touchmove', block, { passive: false });
+    document.addEventListener('gesturestart', (e) => e.preventDefault());
+    document.addEventListener('gesturechange', (e) => e.preventDefault());
+    let lastTap = 0;
+    document.addEventListener('touchend', (e) => {
+      const now = Date.now();
+      if (now - lastTap < 320 && !inMenu(e.target)) e.preventDefault();
+      lastTap = now;
+    }, { passive: false });
   }
   _hold(el, fn) {
-    const down = (e) => { e.preventDefault(); el.classList.add('held'); fn(1); };
-    const up = () => { el.classList.remove('held'); fn(0); };
+    if (!el) return;
+    const ids = new Set();
+    const down = (e) => {
+      e.preventDefault();
+      try { el.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
+      ids.add(e.pointerId);
+      el.classList.add('held');
+      fn(1);
+    };
+    const up = (e) => {
+      if (e) ids.delete(e.pointerId);
+      if (ids.size === 0) {
+        el.classList.remove('held');
+        fn(0);
+      }
+    };
     el.addEventListener('pointerdown', down);
     el.addEventListener('pointerup', up);
     el.addEventListener('pointercancel', up);
-    el.addEventListener('pointerleave', (e) => { if (e.buttons === 0) up(); });
   }
   _joy(el) {
+    if (!el) return;
     const move = (e) => {
       if (this.joyId !== e.pointerId) return;
       const r = el.getBoundingClientRect();
@@ -272,13 +302,14 @@ class Input {
       let x = e.clientX - cx, y = e.clientY - cy;
       const len = Math.hypot(x, y);
       if (len > max) { x *= max / len; y *= max / len; }
-      $('joy-knob').style.transform = 'translate(calc(-50% + ' + x + 'px), calc(-50% + ' + y + 'px))';
+      const knob = $('joy-knob');
+      if (knob) knob.style.transform = 'translate(calc(-50% + ' + x + 'px), calc(-50% + ' + y + 'px))';
       this.joy.x = Math.abs(x / max) < 0.15 ? 0 : x / max;
       this.joy.y = Math.abs(y / max) < 0.15 ? 0 : -(y / max);
     };
     el.addEventListener('pointerdown', (e) => {
       e.preventDefault();
-      el.setPointerCapture(e.pointerId);
+      try { el.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
       this.joyId = e.pointerId;
       move(e);
     });
@@ -288,7 +319,8 @@ class Input {
     if (e.pointerId === this.joyId) {
       this.joyId = null;
       this.joy.x = 0; this.joy.y = 0;
-      $('joy-knob').style.transform = 'translate(-50%, -50%)';
+      const knob = $('joy-knob');
+      if (knob) knob.style.transform = 'translate(-50%, -50%)';
     }
   }
   axis() {
@@ -309,7 +341,7 @@ class Input {
     if (ax.y > 0.35) gas = Math.max(gas, ax.y);
     if (ax.y < -0.35) brake = Math.max(brake, -ax.y);
     const nitro = this.nitroBtn || this.keys.ShiftLeft || this.keys.ShiftRight ? 1 : 0;
-    return { steer: ax.x, gas, brake, handbrake: !!(this.keys.Space), nitro };
+    return { steer: ax.x, gas, brake, handbrake: !!(this.keys.Space || this.driftBtn), nitro };
   }
   consumeEnter() { const v = this.enterQueued; this.enterQueued = false; return v; }
   consumeHorn() { const v = this.hornQueued; this.hornQueued = false; return v; }
@@ -595,7 +627,9 @@ class Game {
     this.time = 0;
     this.hornT = 0;
     this.params = new URLSearchParams(location.search);
-    this.isTouch = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
+    this.isTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints || 0) > 0
+      || this.params.has('touch') || /iPhone|iPad|iPod|Android/i.test(navigator.userAgent || '');
+    this.lite = this.isTouch || Math.min(innerWidth, innerHeight) < 700;
     this.stars = 0;
     this.nitro = 1;
     this.escapeT = 0;
@@ -608,6 +642,7 @@ class Game {
     this.benches = [];
     this.holdBust = 0;
     this.redLock = '';
+    this.rotateHintDismissed = false;
   }
 
   init() {
@@ -618,7 +653,7 @@ class Game {
     this.camera = new THREE.PerspectiveCamera(58, innerWidth / innerHeight, 0.2, 500);
     this.camera.position.copy(this.camPos);
     this.renderer = new THREE.WebGLRenderer({ canvas: $('c'), antialias: !this.isTouch, powerPreference: 'high-performance' });
-    this.renderer.setPixelRatio(Math.min(devicePixelRatio || 1, this.isTouch ? 1.35 : 1.6));
+    this.renderer.setPixelRatio(Math.min(devicePixelRatio || 1, this.isTouch ? 1.5 : 1.75));
     this.renderer.setSize(innerWidth, innerHeight);
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.hemi = new THREE.HemisphereLight(0xecf6ff, 0x5a7a4a, 0.9);
@@ -633,11 +668,21 @@ class Game {
     this.bindUI();
     this.renderGarage();
     this.resize();
-    window.addEventListener('resize', () => this.resize());
-    if (window.visualViewport) window.visualViewport.addEventListener('resize', () => this.resize());
+    const onResize = () => this.resize();
+    window.addEventListener('resize', onResize);
+    window.addEventListener('orientationchange', () => setTimeout(onResize, 250));
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', onResize);
+      window.visualViewport.addEventListener('scroll', onResize);
+    }
     document.addEventListener('visibilitychange', () => {
       if (document.hidden) this.clock.getDelta();
+      else this.sfx.unlock();
     });
+    const unlockAudio = () => this.sfx.unlock();
+    document.addEventListener('pointerdown', unlockAudio);
+    document.addEventListener('touchstart', unlockAudio, { passive: true });
+    document.addEventListener('click', unlockAudio);
     this.loop();
     if (this.params.get('shot') === 'garage') {
       this.openGarage('title');
@@ -646,11 +691,40 @@ class Game {
     }
   }
 
+  viewSize() {
+    const vv = window.visualViewport;
+    const w = Math.max(1, Math.round(vv && vv.width ? vv.width : innerWidth));
+    const h = Math.max(1, Math.round(vv && vv.height ? vv.height : innerHeight));
+    return { w, h, left: vv ? vv.offsetLeft : 0, top: vv ? vv.offsetTop : 0 };
+  }
+
   resize() {
-    const w = innerWidth, h = innerHeight;
+    const { w, h, left, top } = this.viewSize();
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
-    this.renderer.setSize(w, h);
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, this.isTouch ? 1.5 : 1.75));
+    this.renderer.setSize(w, h, false);
+    const c = $('c');
+    if (c) { c.style.width = w + 'px'; c.style.height = h + 'px'; }
+    const app = $('app');
+    if (app) {
+      app.style.width = w + 'px';
+      app.style.height = h + 'px';
+      app.style.transform = 'translate(' + left + 'px,' + top + 'px)';
+    }
+    document.body.classList.toggle('portrait', h > w);
+    document.body.classList.toggle('landscape', w >= h);
+    document.body.classList.toggle('touch-ui', !!this.isTouch);
+    this.updateRotateHint();
+  }
+
+  updateRotateHint() {
+    const el = $('rotate-hint');
+    if (!el) return;
+    const { w, h } = this.viewSize();
+    const show = this.isTouch && !this.rotateHintDismissed && h > w
+      && (this.mode === 'play' || this.mode === 'pause');
+    el.classList.toggle('hidden', !show);
   }
 
   bindUI() {
@@ -667,6 +741,15 @@ class Game {
     });
     $('btn-quit').addEventListener('click', () => { this.sfx.click(); this.quitToTitle(); });
     if ($('btn-busted')) $('btn-busted').addEventListener('click', () => { this.sfx.click(); this.clearBusted(); });
+    if ($('btn-rotate-dismiss')) {
+      $('btn-rotate-dismiss').addEventListener('click', () => {
+        this.rotateHintDismissed = true;
+        this.updateRotateHint();
+      });
+    }
+    const ios = /iPhone|iPad|iPod/i.test(navigator.userAgent || '') || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    const standalone = window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches;
+    if ($('a2hs-tip')) $('a2hs-tip').classList.toggle('hidden', standalone);
     $('btn-day').addEventListener('click', () => {
       this.autoNight = false;
       this.nightTarget = this.night < 0.5 ? 1 : 0;
@@ -690,8 +773,12 @@ class Game {
     $('pause').classList.add('hidden');
     $('garage').classList.add('hidden');
     $('hud').classList.remove('hidden');
-    if (this.isTouch) $('touch').classList.remove('hidden');
+    if (this.isTouch || this.params.has('touch')) {
+      this.isTouch = true;
+      $('touch').classList.remove('hidden');
+    }
     this.mode = 'play';
+    this.updateRotateHint();
     this.demo = !!demo;
     this.clock.getDelta();
     if (demo) {
@@ -741,6 +828,7 @@ class Game {
     $('hud').classList.add('hidden');
     $('touch').classList.add('hidden');
     $('title').classList.remove('hidden');
+    this.updateRotateHint();
     this.player.position.set(lotC(2) + 8, 0, lotC(2) + 14);
     this.heading = 0;
   }
@@ -1311,7 +1399,8 @@ class Game {
 
     const routes = this._trafficRoutes();
     const trafficColors = [0x6ec6ff, 0xff8fab, 0x95d5b2, 0xffd6a5, 0xc8b6ff, 0x90a4ae, 0xfff3b0, 0x80cbc4];
-    for (let i = 0; i < 8; i++) {
+    const trafficN = this.lite ? 5 : 8;
+    for (let i = 0; i < trafficN; i++) {
       const spec = {
         id: 'ai' + i, name: 'Car', color: trafficColors[i], accent: 0xffffff,
         max: 14 + (i % 3), kind: i % 3 === 0 ? 'hatch' : (i % 3 === 1 ? 'van' : 'sport'),
@@ -2326,7 +2415,8 @@ class Game {
       return ped;
     };
     // walkers
-    for (let i = 0; i < 20; i++) {
+    const nWalk = this.lite ? 12 : 20;
+    for (let i = 0; i < nWalk; i++) {
       const li = i % N, lj = (i * 2 + 1) % N;
       const loop = this._sidewalkLoop(li, lj);
       const ped = add('walk', { loop, t: i * 0.04 });
@@ -2334,14 +2424,16 @@ class Game {
       ped.mesh.position.set(pos.x, 0, pos.z);
     }
     // dog walkers
-    for (let i = 0; i < 6; i++) {
+    const nDog = this.lite ? 3 : 6;
+    for (let i = 0; i < nDog; i++) {
       const loop = this._sidewalkLoop((i + 1) % N, (i * 2) % N);
       const ped = add('dog', { loop, t: 0.1 * i });
       const pos = this._loopPos(loop, ped.t);
       ped.mesh.position.set(pos.x, 0, pos.z);
     }
     // crossers
-    for (let i = 0; i < 8; i++) {
+    const nCross = this.lite ? 4 : 8;
+    for (let i = 0; i < nCross; i++) {
       const a = roadC(i % (N + 1)), b = roadC((i + 2) % (N + 1));
       const along = (i % 2 === 0);
       const wait = along
@@ -2354,13 +2446,15 @@ class Game {
       ped.mesh.position.set(wait.x, 0, wait.z);
     }
     // waiters at bus stops
-    for (let i = 0; i < 6; i++) {
+    const nWait = this.lite ? 4 : 6;
+    for (let i = 0; i < nWait; i++) {
       const s = this.busStops[i] || { x: roadC(i), z: roadC(0) - 10 };
       const ped = add('wait', { home: { x: s.x + 0.3, z: s.z + 0.6 } });
       ped.mesh.position.set(ped.home.x, 0, ped.home.z);
     }
     // sitters
-    for (let i = 0; i < 6; i++) {
+    const nSit = this.lite ? 4 : 6;
+    for (let i = 0; i < nSit; i++) {
       const b = this.benches[i] || { x: lotC(2) + 8, z: lotC(2), rot: 0 };
       const ped = add('sit', { home: { x: b.x, z: b.z }, sitRot: b.rot || 0 });
       ped.mesh.position.set(b.x, 0, b.z);
@@ -2371,7 +2465,8 @@ class Game {
     // chatters in parks, pairs
     const parks = [];
     for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) if (specialLot(i, j) === 'park' || specialLot(i, j) === 'plaza') parks.push({ x: lotC(i), z: lotC(j) });
-    for (let i = 0; i < 4; i++) {
+    const nChat = this.lite ? 2 : 4;
+    for (let i = 0; i < nChat; i++) {
       const pk = parks[i % parks.length];
       const ox = (i % 2) * 4 - 2, oz = (i * 3 % 5) - 2;
       const a = add('chat', { home: { x: pk.x + ox, z: pk.z + oz }, partner: null });

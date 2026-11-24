@@ -4,13 +4,15 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="Zoom City" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="theme-color" content="#ffb703" />
+  <meta name="format-detection" content="telephone=no" />
   <meta name="description" content="Zoom City — drive, take jobs, and pull off getaways in a sunny 3D city." />
   <title>Zoom City</title>
   <link rel="icon" type="image/png" href="icons/favicon.png" />
-  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+  <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png" />
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="stylesheet" href="css/style.css" />
 </head>
@@ -55,14 +57,22 @@
       <div id="toast" class="hidden"></div>
     </div>
 
+    <div id="rotate-hint" class="hidden">
+      <span>Turn your phone sideways for a bigger view. You can still play like this.</span>
+      <button type="button" id="btn-rotate-dismiss" aria-label="Dismiss">OK</button>
+    </div>
+
     <div id="touch" class="hidden">
       <div id="joy-wrap">
         <div id="joy-base"><div id="joy-knob"></div></div>
       </div>
       <div id="touch-right">
-        <button type="button" id="btn-horn" class="act-btn horn">🔔</button>
-        <button type="button" id="btn-nitro" class="act-btn nitro">Nitro</button>
-        <button type="button" id="btn-enter" class="act-btn enter">Hop in</button>
+        <div id="touch-actions">
+          <button type="button" id="btn-horn" class="act-btn horn">🔔</button>
+          <button type="button" id="btn-drift" class="act-btn drift">Drift</button>
+          <button type="button" id="btn-nitro" class="act-btn nitro">Nitro</button>
+          <button type="button" id="btn-enter" class="act-btn enter">Hop in</button>
+        </div>
         <div id="pedals">
           <button type="button" id="btn-brake" class="act-btn pedal brake">Brake</button>
           <button type="button" id="btn-gas" class="act-btn pedal gas">Gas</button>
@@ -91,7 +101,8 @@
             <li>People jump out of the way. Nobody gets hurt. There are no guns.</li>
           </ul>
         </div>
-        <p class="ver">v3</p>
+        <p class="a2hs" id="a2hs-tip">On iPhone: tap the Share button, then Add to Home Screen, to play it like an app.</p>
+        <p class="ver">v4</p>
       </div>
     </div>
 
