@@ -30,7 +30,9 @@ Jobs are deliveries, taxi rides, checkpoint races, and getaways.
 
 ## Cars
 
-Coins you collect are saved on this device. Use them in the Garage to unlock new cars. If a car gets too smashed, it pops in a cartoon explosion (with no one inside), and you can call another one from the Garage.
+Every car is free from the start. Coins you collect are saved on this device and count as a score. If a car gets too smashed, it pops in a cartoon explosion (with no one inside), and you can call another one from the Garage.
+
+If the police catch you, you will see a Busted! message and go back to the plaza. Your wanted stars are cleared. Nobody gets hurt.
 
 ## Note
 

@@ -34,6 +34,10 @@
           <div id="nitro-bar"><div id="nitro-fill"></div></div>
         </div>
         <div id="escape-hint" class="hidden">Hide from the police to lose a star!</div>
+        <div id="bust-meter" class="hidden">
+          <div id="bust-label">Busted!</div>
+          <div id="bust-bar"><div id="bust-fill"></div></div>
+        </div>
       </div>
       <div id="mission-banner" class="hidden">
         <div id="mission-title">Job</div>
@@ -83,18 +87,18 @@
             <li>Go to the glowing job signs for deliveries, taxi rides, races, and getaways.</li>
             <li>Crashes, smashed stuff, and running red lights can raise wanted stars. Police cars will chase you. Hide to lose stars.</li>
             <li>Hold Nitro (or Shift) for a speed burst.</li>
-            <li>Collect coins to unlock faster cars.</li>
+            <li>Every car is free. Collect coins just for fun and a high score.</li>
             <li>People jump out of the way. Nobody gets hurt. There are no guns.</li>
           </ul>
         </div>
-        <p class="ver">v2</p>
+        <p class="ver">v3</p>
       </div>
     </div>
 
     <div id="busted" class="screen hidden">
       <div class="panel">
         <h2>Busted!</h2>
-        <p class="tag">The police boxed you in. They just want to talk. Your wanted stars are gone.</p>
+        <p class="tag">The police caught you! You are back at the plaza. Your wanted stars are gone. They just want to talk.</p>
         <button type="button" id="btn-busted" class="big-btn">Keep playing</button>
       </div>
     </div>
@@ -113,7 +117,7 @@
     <div id="garage" class="screen hidden">
       <div class="panel garage-panel">
         <h2>Garage</h2>
-        <p class="garage-coins">Your coins: <strong id="garage-coins">0</strong></p>
+        <p class="garage-coins">Every car is free. Coins: <strong id="garage-coins">0</strong> (just for fun)</p>
         <div id="car-list"></div>
         <button type="button" id="btn-garage-close" class="big-btn">Done</button>
       </div>

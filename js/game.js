@@ -11,10 +11,10 @@ const SAVE_KEY = 'zoomCity_v1';
 
 const CAR_SPECS = [
   { id: 'sunny', name: 'Sunny', color: 0xffc828, accent: 0xfff3b0, max: 28, accel: 22, brake: 36, steer: 2.4, grip: 0.12, cost: 0, kind: 'hatch', desc: 'Your first car. Easy and friendly.' },
-  { id: 'taxi', name: 'Taxi', color: 0xffd400, accent: 0x1a1a1a, max: 26, accel: 20, brake: 34, steer: 2.2, grip: 0.12, cost: 30, kind: 'taxi', desc: 'A bright taxi. Great for giving rides.' },
-  { id: 'hauler', name: 'Hauler', color: 0x4d8fff, accent: 0xdce8ff, max: 24, accel: 16, brake: 32, steer: 1.8, grip: 0.16, cost: 50, kind: 'van', desc: 'A roomy van. Steady on ramps.' },
-  { id: 'bolt', name: 'Bolt', color: 0xff3355, accent: 0x2a2a30, max: 38, accel: 32, brake: 40, steer: 2.8, grip: 0.1, cost: 75, kind: 'sport', desc: 'A fast red sports car.' },
-  { id: 'rocket', name: 'Rocket', color: 0xb44aff, accent: 0xffce54, max: 36, accel: 30, brake: 42, steer: 3.1, grip: 0.18, cost: 120, kind: 'stunt', desc: 'A stunt car with sticky grip.' },
+  { id: 'taxi', name: 'Taxi', color: 0xffd400, accent: 0x1a1a1a, max: 26, accel: 20, brake: 34, steer: 2.2, grip: 0.12, cost: 0, kind: 'taxi', desc: 'A bright taxi. Great for giving rides.' },
+  { id: 'hauler', name: 'Hauler', color: 0x4d8fff, accent: 0xdce8ff, max: 24, accel: 16, brake: 32, steer: 1.8, grip: 0.16, cost: 0, kind: 'van', desc: 'A roomy van. Steady on ramps.' },
+  { id: 'bolt', name: 'Bolt', color: 0xff3355, accent: 0x2a2a30, max: 38, accel: 32, brake: 40, steer: 2.8, grip: 0.1, cost: 0, kind: 'sport', desc: 'A fast red sports car.' },
+  { id: 'rocket', name: 'Rocket', color: 0xb44aff, accent: 0xffce54, max: 36, accel: 30, brake: 42, steer: 3.1, grip: 0.18, cost: 0, kind: 'stunt', desc: 'A stunt car with sticky grip.' },
 ];
 
 function lotC(i) { return (i - (N - 1) / 2) * STEP; }
@@ -101,15 +101,17 @@ function tintGeo(g, color, start = 0, count = -1) {
   return g;
 }
 
+function allCarIds() { return CAR_SPECS.map((c) => c.id); }
+
 function loadSave() {
-  const blank = { coins: 0, unlocked: ['sunny'], selected: 'sunny' };
+  const blank = { coins: 0, unlocked: allCarIds(), selected: 'sunny' };
   try {
     const raw = localStorage.getItem(SAVE_KEY);
     if (!raw) return blank;
     const d = JSON.parse(raw);
-    if (!Array.isArray(d.unlocked) || !d.unlocked.includes('sunny')) d.unlocked = ['sunny'];
+    d.unlocked = allCarIds();
     d.coins = Math.max(0, d.coins | 0);
-    if (!CAR_SPECS.some((c) => c.id === d.selected && d.unlocked.includes(d.selected))) d.selected = 'sunny';
+    if (!CAR_SPECS.some((c) => c.id === d.selected)) d.selected = 'sunny';
     return d;
   } catch (e) {
     return blank;
@@ -609,6 +611,7 @@ class Game {
   }
 
   init() {
+    writeSave(this.save);
     this.scene = new THREE.Scene();
     this.scene.background = col(0x7ec8e3);
     this.scene.fog = new THREE.Fog(0x7ec8e3, 80, 260);
@@ -636,7 +639,9 @@ class Game {
       if (document.hidden) this.clock.getDelta();
     });
     this.loop();
-    if (this.params.has('demo') || this.params.get('shot') === 'drive' || this.params.get('shot') === 'chase') {
+    if (this.params.get('shot') === 'garage') {
+      this.openGarage('title');
+    } else if (this.params.has('demo') || this.params.get('shot') === 'drive' || this.params.get('shot') === 'chase' || this.params.get('shot') === 'busted') {
       this.startGame(true);
     }
   }
@@ -720,6 +725,10 @@ class Game {
     if (fs && !demo) {
       Promise.resolve(fs.call(document.documentElement)).catch(() => {});
     }
+    if (this.params.get('shot') === 'busted') {
+      this.stars = 3;
+      setTimeout(() => { if (this.mode === 'play') this.doBust(); }, 700);
+    }
   }
 
   quitToTitle() {
@@ -768,21 +777,16 @@ class Game {
     const list = $('car-list');
     list.innerHTML = '';
     for (const spec of CAR_SPECS) {
-      const unlocked = this.save.unlocked.includes(spec.id);
       const el = document.createElement('div');
       el.className = 'car-card' + (this.save.selected === spec.id ? ' selected' : '');
       const info = document.createElement('div');
-      info.innerHTML = '<div class="name">' + spec.name + '</div><div class="meta">' + spec.desc + '</div>';
+      info.innerHTML = '<div class="name">' + spec.name + '</div><div class="meta">' + spec.desc + ' Ready to go!</div>';
       const btn = document.createElement('button');
-      if (!unlocked) {
-        btn.className = 'locked';
-        btn.textContent = 'Unlock \u00B7 ' + spec.cost + ' \uD83E\uDE99';
-        btn.addEventListener('click', () => this.buyCar(spec));
-      } else if (this.playerCar && this.playerCar.spec.id === spec.id && this.mode === 'play') {
+      if (this.playerCar && this.playerCar.spec.id === spec.id && this.mode === 'play') {
         btn.className = 'in-use';
         btn.textContent = 'In use';
       } else {
-        btn.textContent = 'Call car';
+        btn.textContent = 'Use this car';
         btn.addEventListener('click', () => this.callCar(spec));
       }
       el.append(info, btn);
@@ -790,25 +794,7 @@ class Game {
     }
   }
 
-  buyCar(spec) {
-    if (this.save.coins < spec.cost) {
-      this.toast('You need more coins for ' + spec.name + '.');
-      this.sfx.fail();
-      return;
-    }
-    this.save.coins -= spec.cost;
-    if (!this.save.unlocked.includes(spec.id)) this.save.unlocked.push(spec.id);
-    this.save.selected = spec.id;
-    writeSave(this.save);
-    this.sfx.success();
-    this.toast('You unlocked ' + spec.name + '!');
-    this.updateCoins();
-    this.renderGarage();
-    const car = this.cars.find((c) => c.spec.id === spec.id);
-    if (car) car.locked = false;
-  }
-
-  callCar(spec) {
+    callCar(spec) {
     this.save.selected = spec.id;
     writeSave(this.save);
     const car = this.cars.find((c) => c.spec.id === spec.id);
@@ -1309,9 +1295,8 @@ class Game {
     for (const s of carSpawns) {
       const spec = CAR_SPECS.find((c) => c.id === s.id);
       const mesh = makeCarMesh(spec);
-      const locked = !this.save.unlocked.includes(spec.id);
       const car = {
-        spec, mesh, locked,
+        spec, mesh, locked: false,
         pos: new THREE.Vector3(s.x, 0, s.z),
         vel: new THREE.Vector3(),
         heading: s.h,
@@ -1491,10 +1476,7 @@ class Game {
 
   enterCar(car) {
     if (!car) return;
-    if (car.locked) {
-      this.toast('Unlock ' + car.spec.name + ' in the Garage for ' + car.spec.cost + ' coins.');
-      return;
-    }
+    car.locked = false;
     this.playerCar = car;
     this.player.visible = false;
     this.heading = car.heading;
@@ -1617,8 +1599,7 @@ class Game {
 
     const near = this.nearestCar(4.5);
     if (near) {
-      if (near.locked) this.setPrompt('Unlock ' + near.spec.name + ' in the Garage (' + near.spec.cost + ' coins).');
-      else this.setPrompt(this.isTouch ? 'Tap Hop in to drive the ' + near.spec.name + '.' : 'Press E to hop into the ' + near.spec.name + '.');
+      this.setPrompt(this.isTouch ? 'Tap Hop in to drive the ' + near.spec.name + '.' : 'Press E to hop into the ' + near.spec.name + '.');
     } else this.setPrompt('');
     this.sfx.setEngine(false, 0, 1);
   }
@@ -1819,7 +1800,7 @@ class Game {
   }
 
   updateCamera(dt) {
-    if (this.mode === 'title' || (this.mode !== 'play' && this.mode !== 'pause')) {
+    if (this.mode === 'title' || (this.mode !== 'play' && this.mode !== 'pause' && this.mode !== 'busted')) {
       const t = this.time * 0.12;
       this.camera.position.set(Math.sin(t) * 70, 38, Math.cos(t) * 70);
       this.camera.lookAt(0, 2, 0);
@@ -2635,8 +2616,9 @@ class Game {
       cop.heading = lerpAng(cop.heading, want, 1 - Math.pow(0.08, dt));
       const dist = Math.hypot(p.x - cop.pos.x, p.z - cop.pos.z);
       const max = cop.spec.max * (0.85 + this.stars * 0.04);
-      if (dist > 6) cop.speed = Math.min(max, cop.speed + cop.spec.accel * dt);
-      else cop.speed = Math.max(8, cop.speed - 8 * dt);
+      if (dist > 6) cop.speed = Math.min(max, cop.speed + (cop.spec.accel + 6) * dt);
+      else if (dist > 3.4) cop.speed = lerp(cop.speed, Math.max(Math.abs(pspd), 7), 0.35);
+      else cop.speed = Math.min(cop.speed, Math.max(3, Math.abs(pspd) + 1.5));
       cop.pos.x += Math.sin(cop.heading) * cop.speed * dt;
       cop.pos.z += -Math.cos(cop.heading) * cop.speed * dt;
       this.resolvePos(cop.pos, 1.2);
@@ -2649,13 +2631,38 @@ class Game {
       if (cop.mesh.userData.lightR) cop.mesh.userData.lightR.visible = flash;
       if (cop.mesh.userData.lightB) cop.mesh.userData.lightB.visible = !flash;
       if (this.playerCar) this.bumpCars(this.playerCar, cop, true);
-      if (dist < 5) closeCount++;
+      if (dist < 6) closeCount++;
+      if (dist < 3.7) this._bustTouch = (this._bustTouch || 0) + 1;
       this.carSmoke(cop, dt);
     }
-    if (this.stars > 0 && this.playerCar && Math.abs(pspd) < 4 && closeCount >= (this.stars >= 3 ? 2 : 1)) {
-      this.holdBust += dt;
-      if (this.holdBust > 1.8) this.doBust();
-    } else this.holdBust = Math.max(0, this.holdBust - dt);
+    this.updateBustMeter(dt, closeCount, pspd);
+  }
+
+  updateBustMeter(dt, closeCount, pspd) {
+    this._bustTouch = this._bustTouch || 0;
+    const touch = this._bustTouch;
+    this._bustTouch = 0;
+    const speed = Math.abs(pspd || 0);
+    const catching = this.stars > 0 && (
+      (touch >= 1 && speed < 12) ||
+      (closeCount >= 2 && speed < 14) ||
+      (touch >= 1 && closeCount >= 2 && speed < 20) ||
+      (!this.playerCar && closeCount >= 1)
+    );
+    const NEED = 2;
+    if (catching) this.holdBust = Math.min(NEED, this.holdBust + dt);
+    else this.holdBust = Math.max(0, this.holdBust - dt * 0.7);
+    const el = $('bust-meter');
+    const fill = $('bust-fill');
+    if (el && fill) {
+      const show = this.holdBust > 0.05 && this.stars > 0 && this.mode === 'play';
+      el.classList.toggle('hidden', !show);
+      const k = this.holdBust / NEED;
+      fill.style.transform = 'scaleX(' + k + ')';
+      const lab = $('bust-label');
+      if (lab) lab.textContent = k > 0.75 ? 'Busted!' : "They're catching you!";
+    }
+    if (this.holdBust >= NEED) this.doBust();
   }
 
   doBust() {
@@ -2668,25 +2675,32 @@ class Game {
       this.hideMission();
       this.toast('The getaway failed.');
     }
-    this.save.coins = Math.max(0, this.save.coins - 5);
-    writeSave(this.save);
-    this.updateCoins();
-    if (this.playerCar) {
-      this.playerCar.speed = 0;
-      this.playerCar.vel.set(0, 0, 0);
+    const plaza = this.plaza || new THREE.Vector3(lotC(2) + 8, 0, lotC(2) + 16);
+    const car = this.playerCar || this.cars.find((c) => c.spec.id === this.save.selected) || this.cars[0];
+    if (car) {
+      car.speed = 0;
+      car.vel.set(0, 0, 0);
+      car.hp = 100;
+      car.wrecked = false;
+      car.locked = false;
+      car.mesh.visible = true;
+      car.pos.copy(plaza);
+      car.heading = 0;
+      this.placeCar(car);
+      if (this.playerCar !== car) this.enterCar(car);
     }
-    const plaza = this.plaza || new THREE.Vector3(lotC(2), 0, lotC(2) + 14);
-    if (this.playerCar) {
-      this.playerCar.pos.copy(plaza);
-      this.playerCar.hp = 100;
-      this.placeCar(this.playerCar);
-    } else {
-      this.player.position.copy(plaza);
-    }
+    this.player.position.copy(plaza);
     this.lastSafe.copy(plaza);
+    this.holdBust = 0;
+    this._bustTouch = 0;
     this.mode = 'busted';
     if ($('busted')) $('busted').classList.remove('hidden');
     this.sfx.fail();
+    this.updateHud();
+    const esc = $('escape-hint');
+    if (esc) esc.classList.add('hidden');
+    const bust = $('bust-meter');
+    if (bust) bust.classList.add('hidden');
   }
 
   clearBusted() {

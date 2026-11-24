@@ -362,3 +362,33 @@ h1 {
   font-size: 15px;
 }
 #busted h2 { color: #ff4d6d; }
+
+#bust-meter {
+  width: 160px;
+  background: rgba(20, 24, 36, 0.85);
+  border-radius: 12px;
+  padding: 6px 8px 8px;
+  border: 2px solid #ff4d6d;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.25);
+}
+#bust-label {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #ff9aab;
+  margin-bottom: 4px;
+}
+#bust-bar {
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.15);
+  overflow: hidden;
+}
+#bust-fill {
+  height: 100%;
+  width: 100%;
+  background: linear-gradient(90deg, #ffb703, #ff4d6d);
+  transform-origin: left center;
+  transform: scaleX(0);
+}
